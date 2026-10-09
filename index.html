@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kantor Virtual AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#1d1830;color:#f4ecd8;font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+  header{width:100%;max-width:1280px;display:flex;justify-content:space-between;align-items:center;padding:18px 24px;gap:12px;flex-wrap:wrap}
+  h1{font-family:'Press Start 2P',monospace;font-size:20px;margin:0;color:#ffd77a;text-shadow:3px 3px 0 #7a1e2c}
+  .sub{font-size:13px;opacity:.75;margin-top:6px}
+  .clock{font-family:'Press Start 2P',monospace;font-size:14px;background:#2c2545;border:3px solid #4b3f73;padding:10px 14px;border-radius:6px;color:#a7c7e7}
+  #wrap{position:relative;width:min(96vw,1100px);aspect-ratio:320/260;border:6px solid #4b3f73;border-radius:10px;overflow:hidden;box-shadow:0 12px 40px #0008}
+  canvas{width:100%;height:100%;image-rendering:pixelated;display:block;cursor:pointer}
+  #bubbles{position:absolute;inset:0;pointer-events:none}
+  .bubble{max-width:150px;white-space:normal;text-align:center;position:absolute;transform:translate(-50%,-100%);background:#fffaf0;color:#2b2140;font-size:clamp(9px,1.05vw,13px);font-weight:700;padding:5px 9px;border-radius:8px;border:2px solid #2b2140;box-shadow:2px 2px 0 #2b214055}
+  .bubble:after{content:'';position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);border:6px solid transparent;border-top-color:#2b2140}
+  .tag{position:absolute;transform:translate(-50%,0);font-family:'Press Start 2P',monospace;font-size:clamp(6px,.7vw,9px);background:#7a1e2cdd;color:#fff;padding:3px 5px;border-radius:3px;white-space:nowrap}
+  .tag.empty{background:#4b3f73cc;color:#cfc6ea}
+  #card{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:10}
+  #card .box{background:#2c2545;border:4px solid #ffd77a;border-radius:10px;padding:22px;width:min(92vw,420px)}
+  #card h2{font-family:'Press Start 2P',monospace;font-size:15px;color:#ffd77a;margin:0 0 8px}
+  #card .role{color:#a7c7e7;font-weight:800;margin-bottom:10px}
+  #card p{margin:6px 0 14px;opacity:.9}
+  #card label{font-size:13px;opacity:.8}
+  #card input{width:100%;padding:10px;border-radius:6px;border:2px solid #4b3f73;background:#1d1830;color:#fff;font-family:inherit;font-size:14px;margin:6px 0 14px}
+  .btns{display:flex;gap:10px;justify-content:flex-end}
+  button{font-family:'Press Start 2P',monospace;font-size:10px;padding:10px 12px;border:none;border-radius:6px;cursor:pointer}
+  .save{background:#ffd77a;color:#2b2140}.close{background:#4b3f73;color:#fff}
+  footer{font-size:12px;opacity:.6;padding:14px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>KANTOR VIRTUAL AI</h1><div class="sub">Klik karakter untuk lihat detail dan ubah statusnya</div></div>
+  <div class="clock" id="clock">--:--:-- WIB</div>
+</header>
+<div id="wrap"><canvas id="c" width="320" height="260"></canvas><div id="bubbles"></div></div>
+<footer>Tambah agent baru: edit daftar <b>AGENTS</b> di bagian atas skrip file ini.</footer>
+<div id="card"><div class="box">
+  <h2 id="cName"></h2><div class="role" id="cRole"></div><p id="cDesc"></p>
+  <label>Status sekarang</label><input id="cStatus" maxlength="60">
+  <div class="btns"><button class="close" id="cClose">TUTUP</button><button class="save" id="cSave">SIMPAN</button></div>
+</div></div>
+<script>
+// ====== DAFTAR KARYAWAN AI (edit di sini) ======
+const AGENTS = [
+  {id:'grok', name:'Grok Bot', role:'Asisten Utama · IT Service Management', status:'Lagi desain poster The Way Home', desc:'Bantu desain, riset, coding, dan urusan Slack & Canva.', shirt:'#7a1e2c', hair:'#3a2a1a', skin:'#f1c27d', desk:0},
+  {id:'new', name:'New Bot', role:'Asisten Baru', status:'Menunggu tugas pertama', desc:'Karyawan baru yang siap dikasih kerjaan.', shirt:'#4a7fbf', hair:'#1a1a2a', skin:'#e0ac69', desk:1},
+  {id:'mukti', name:'Mukti', role:'Bot Baru', status:'Halo, saya Mukti! Baru gabung', desc:'Karyawan AI paling baru di kantor.', shirt:'#3f8f4f', hair:'#5a3a1a', skin:'#d9a066', desk:2},
+  {id:'dira', name:'Dira', role:'Desainer', status:'Siap, menunggu tugas', desc:'Poster, feed/story IG, slide, dan aset Canva.', shirt:'#c0567a', hair:'#2a1a12', skin:'#f1c27d', desk:3},
+  {id:'kata', name:'Kata', role:'Penulis Konten', status:'Siap, menunggu tugas', desc:'Caption, pengumuman, teks poster, dan draf pesan.', shirt:'#e0a526', hair:'#1a1a1a', skin:'#e0ac69', desk:4},
+  {id:'riko', name:'Riko', role:'Riset', status:'Siap, menunggu tugas', desc:'Cari info, bandingkan pilihan, dan cek fakta.', shirt:'#2f6f8f', hair:'#3a2a1a', skin:'#c68642', desk:5},
+  {id:'sari', name:'Sari', role:'Admin & Jadwal', status:'Siap, menunggu tugas', desc:'Rundown acara, to-do list, notulen, dan pengingat.', shirt:'#8a5ac0', hair:'#4a2a1a', skin:'#f1c27d', desk:6},
+  {id:'tegar', name:'Tegar', role:'IT Support', status:'Siap, menunggu tugas', desc:'Bantu masalah komputer, aplikasi, akun, dan spreadsheet.', shirt:'#4f4f5f', hair:'#111', skin:'#d9a066', desk:7},
+];
+// ===============================================
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+const W=320,H=260;
+const DESKS=[{x:40,y:96},{x:104,y:96},{x:168,y:96},{x:40,y:150},{x:104,y:150},{x:168,y:150},{x:40,y:204},{x:104,y:204},{x:168,y:204}];
+const COFFEE={x:276,y:150};
+const saved=JSON.parse(localStorage.getItem('kv-status')||'{}');
+AGENTS.forEach(a=>{if(saved[a.id])a.status=saved[a.id];const d=DESKS[a.desk];a.home={x:d.x+12,y:d.y-4};a.x=a.home.x;a.y=a.home.y;a.mode='work';a.t=Math.random()*400;a.next=600+Math.random()*900});
+function R(x,y,w,h,c){g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)}
+function hourWIB(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Jakarta'})).getHours()}
+function room(f){
+  // wall
+  R(0,0,W,58,'#e9d9b8');R(0,52,W,6,'#c9a97a');
+  for(let x=0;x<W;x+=16)R(x,0,1,52,'#e2cfa9');
+  // windows
+  const h=hourWIB(),night=h<6||h>=18,sky=night?'#1f2a55':(h<8||h>=16?'#f6b88a':'#a7c7e7');
+  [[20,10],[120,10],[220,10]].forEach(([x,y])=>{R(x-2,y-2,60,34,'#7a5a3a');R(x,y,56,30,sky);
+    if(night){R(x+40,y+6,4,4,'#fff6c8');R(x+10,y+16,1,1,'#fff');R(x+26,y+8,1,1,'#fff')}else{R(x+8,y+8,14,4,'#fff');R(x+30,y+18,12,3,'#fff')}
+    R(x+27,y,2,30,'#7a5a3a');R(x,y+14,56,2,'#7a5a3a')});
+  // whiteboard
+  R(88,14,24,0,'#000');
+  // floor
+  for(let y=58;y<H;y+=10)for(let x=-20;x<W;x+=20){R(x+((y/10)%2?10:0),y,20,10,((x+y)/10)%2?'#b98b5e':'#c4966a');R(x+((y/10)%2?10:0),y,20,1,'#a77b50')}
+  // rug meeting area
+  R(232,70,76,52,'#7a1e2c');R(236,74,68,44,'#9a3040');R(250,84,40,24,'#8a5a32');R(250,84,40,3,'#a8743f');
+  [[244,88],[292,88],[244,100],[292,100]].forEach(([x,y])=>R(x,y,6,6,'#4b3f73'));
+  // coffee corner
+  R(266,132,46,18,'#6b4a2e');R(266,132,46,3,'#8a6440');R(272,122,12,10,'#333');R(274,124,8,4,'#c33');R(290,126,6,6,'#fff');R(291,127,4,3,'#6b3a1a');
+  // plants
+  [[6,64],[214,64],[6,236],[214,236],[290,236]].forEach(([x,y])=>{R(x+2,y+10,8,8,'#b5651d');R(x,y,12,10,'#3f8f4f');R(x+3,y-4,6,6,'#57a85f');R(x+1,y+3,3,3,'#2f7040')});
+  // desks
+  DESKS.forEach((d,i)=>{R(d.x,d.y,48,14,'#8a5a32');R(d.x,d.y,48,3,'#a8743f');R(d.x+2,d.y+14,3,8,'#5e3c20');R(d.x+43,d.y+14,3,8,'#5e3c20');
+    R(d.x+16,d.y-12,16,11,'#2b2b35');R(d.x+17,d.y-11,14,8,AGENTS.find(a=>a.desk===i)?(f%40<20?'#7fd1ff':'#6fc0ef'):'#3a3a48');R(d.x+22,d.y-1,4,2,'#2b2b35');
+    R(d.x+4,d.y+4,8,4,'#f4ecd8');R(d.x+36,d.y+3,5,6,'#fff');R(d.x+37,d.y+4,3,3,'#6b3a1a');
+    R(d.x+16,d.y+22,16,4,'#4b3f73')});
+  if(night){g.fillStyle='rgba(20,20,60,.28)';g.fillRect(0,0,W,H)}
+}
+function person(a,f){
+  let {x,y}=a;const sit=a.mode==='work';const bob=sit?(Math.floor(f/30+a.t)%2):0;const walk=!sit?Math.floor(f/6)%2:0;
+  y=Math.round(y);x=Math.round(x);
+  R(x-5,y+18,10,2,'rgba(0,0,0,.2)');
+  // legs
+  if(sit){R(x-3,y+12,3,4,'#2b2140');R(x+1,y+12,3,4,'#2b2140')}else{R(x-3,y+12,3,5+walk,'#2b2140');R(x+1,y+12,3,6-walk,'#2b2140')}
+  // body
+  R(x-4,y+4-bob,9,9,a.shirt);
+  // arms typing
+  const arm=sit&&Math.floor(f/5+a.t)%2;R(x-6,y+6-bob+(arm?1:0),2,5,a.shirt);R(x+5,y+6-bob+(arm?0:1),2,5,a.shirt);
+  // head
+  R(x-4,y-4-bob,9,8,a.skin);R(x-4,y-5-bob,9,3,a.hair);R(x-4,y-4-bob,2,4,a.hair);
+  R(x-2,y-bob,1,1,'#222');R(x+2,y-bob,1,1,'#222');
+}
+function update(a){
+  a.next--;
+  if(a.mode==='work'&&a.next<0){a.mode='go';a.target={x:COFFEE.x-10+Math.random()*20,y:COFFEE.y+4}}
+  if(a.mode==='go'||a.mode==='back'){const t=a.mode==='go'?a.target:a.home;const dx=t.x-a.x,dy=t.y-a.y,d=Math.hypot(dx,dy);
+    if(d<1){if(a.mode==='go'){a.mode='coffee';a.wait=180}else{a.mode='work';a.next=900+Math.random()*1200}}else{a.x+=dx/d*.6;a.y+=dy/d*.6}}
+  if(a.mode==='coffee'){if(--a.wait<0)a.mode='back'}
+}
+const bub=document.getElementById('bubbles');
+function overlay(){
+  const s=cv.clientWidth/W;let html='';
+  DESKS.forEach((d,i)=>{if(!AGENTS.find(a=>a.desk===i))html+=`<div class="tag empty" style="left:${(d.x+24)*s}px;top:${(d.y+28)*s}px">Kursi kosong</div>`});
+  AGENTS.forEach(a=>{const st=a.mode==='coffee'?'☕ Rehat kopi sebentar':a.status;
+    html+=`<div class="bubble" style="left:${a.x*s}px;top:${(a.y-8)*s}px">${st.replace(/</g,'&lt;')}</div>`;
+    html+=`<div class="tag" style="left:${a.x*s}px;top:${(a.y+21)*s}px">${a.name}</div>`});
+  bub.innerHTML=html;
+}
+
+// Live: ambil status dari server tiap 3 detik (kalau dibuka lewat server)
+const GH=location.hostname.endsWith('github.io');
+async function poll(){try{const r=GH?await fetch('https://api.github.com/repos/agrovetahusadadharma/kantor-virtual/contents/status.json',{cache:'no-store',headers:{Accept:'application/vnd.github.raw'}}):await fetch('/status',{cache:'no-store'});if(!r.ok)return;const d=await r.json();AGENTS.forEach(a=>{if(d[a.id])a.status=d[a.id].status+' ('+d[a.id].at+')'})}catch(e){}}
+if(location.protocol.startsWith('http')){poll();setInterval(poll,GH?65000:3000)}
+let f=0;function loop(){f++;room(f);AGENTS.forEach(update);[...AGENTS].sort((a,b)=>a.y-b.y).forEach(a=>person(a,f));if(f%3===0)overlay();requestAnimationFrame(loop)}
+loop();
+function tick(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour12:false})+' WIB'}tick();setInterval(tick,1000);
+let cur=null;const card=document.getElementById('card');
+cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*H;
+  const a=AGENTS.find(a=>Math.abs(a.x-x)<10&&y>a.y-10&&y<a.y+22);if(!a)return;cur=a;
+  cName.textContent=a.name;cRole.textContent=a.role;cDesc.textContent=a.desc;cStatus.value=a.status;card.style.display='flex'});
+cClose.onclick=()=>card.style.display='none';
+cSave.onclick=()=>{cur.status=cStatus.value||cur.status;saved[cur.id]=cur.status;localStorage.setItem('kv-status',JSON.stringify(saved));card.style.display='none'};
+</script>
+</body>
+</html>
