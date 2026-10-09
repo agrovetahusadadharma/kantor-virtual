@@ -125,7 +125,7 @@ function overlay(){
 
 // Live: ambil status dari server tiap 3 detik (kalau dibuka lewat server)
 const GH=location.hostname.endsWith('github.io');
-async function poll(){try{const r=GH?await fetch('https://api.github.com/repos/agrovetahusadadharma/kantor-virtual/contents/status.json',{cache:'no-store',headers:{Accept:'application/vnd.github.raw'}}):await fetch('/status',{cache:'no-store'});if(!r.ok)return;const d=await r.json();AGENTS.forEach(a=>{if(d[a.id])a.status=d[a.id].status+' ('+d[a.id].at+')'})}catch(e){}}
+async function poll(){try{const r=GH?await fetch('https://api.github.com/repos/agrovetahusadadharma/kantor-virtual/contents/status.json?ref=status',{cache:'no-store',headers:{Accept:'application/vnd.github.raw'}}):await fetch('/status',{cache:'no-store'});if(!r.ok)return;const d=await r.json();AGENTS.forEach(a=>{if(d[a.id])a.status=d[a.id].status+' ('+d[a.id].at+')'})}catch(e){}}
 if(location.protocol.startsWith('http')){poll();setInterval(poll,GH?65000:3000)}
 let f=0;function loop(){f++;room(f);AGENTS.forEach(update);[...AGENTS].sort((a,b)=>a.y-b.y).forEach(a=>person(a,f));if(f%3===0)overlay();requestAnimationFrame(loop)}
 loop();
